@@ -1,0 +1,123 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Go-Flix Movie Manager</title>
+    <link rel="stylesheet" href="styles.css">
+    <link rel="icon" href="data:,">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+</head>
+<body>
+    <!-- Header Section -->
+    <header class="header">
+        <div class="container">
+            <h1 class="header-title">
+                <i class="fas fa-film"></i>
+                Go-Flix Movie Manager
+            </h1>
+            <p class="header-subtitle">Kelola koleksi film favorit Anda</p>
+        </div>
+    </header>
+
+    <!-- Main Content -->
+    <main class="main">
+        <div class="container">
+            <div id="movie-list" class="movie-list">
+                <!-- Movie cards will be dynamically inserted here -->
+            </div>
+        </div>
+    </main>
+
+    <!-- Floating Action Button -->
+    <button id="fab" class="fab" title="Tambah Film Baru">
+        <i class="fas fa-plus"></i>
+    </button>
+
+    <!-- Modal Form -->
+    <div id="modal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2 class="modal-title">
+                    <i class="fas fa-plus-circle"></i>
+                    Tambah Film Baru
+                </h2>
+                <button id="close-modal" class="close-btn" title="Tutup">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+            
+            <form id="movie-form" class="movie-form">
+                <input type="hidden" id="movie-id" name="id">
+                
+                <div class="form-group">
+                    <label for="title" class="form-label">
+                        <i class="fas fa-tag"></i>
+                        Judul Film
+                    </label>
+                    <input type="text" id="title" name="title" class="form-input" placeholder="Masukkan judul film" required>
+                </div>
+
+                <div class="form-group">
+                    <label for="genre" class="form-label">
+                        <i class="fas fa-theater-masks"></i>
+                        Genre
+                    </label>
+                    <select id="genre" name="genre" class="form-select" required>
+                        <option value="">Pilih Genre</option>
+                        <option value="Action">Action</option>
+                        <option value="Adventure">Adventure</option>
+                        <option value="Comedy">Comedy</option>
+                        <option value="Drama">Drama</option>
+                        <option value="Horror">Horror</option>
+                        <option value="Romance">Romance</option>
+                        <option value="Sci-Fi">Sci-Fi</option>
+                        <option value="Thriller">Thriller</option>
+                        <option value="Fantasy">Fantasy</option>
+                        <option value="Animation">Animation</option>
+                        <option value="Documentary">Documentary</option>
+                    </select>
+                </div>
+
+                <div class="form-group">
+                    <label for="year" class="form-label">
+                        <i class="fas fa-calendar-alt"></i>
+                        Tahun Rilis
+                    </label>
+                    <input type="number" id="year" name="year" class="form-input" placeholder="2024" min="1900" max="2030" required>
+                </div>
+
+                <div class="form-group">
+                    <label for="director" class="form-label">
+                        <i class="fas fa-user-tie"></i>
+                        Sutradara
+                    </label>
+                    <input type="text" id="director" name="director" class="form-input" placeholder="Nama sutradara" required>
+                </div>
+
+                <div class="form-group">
+                    <label for="cast" class="form-label">
+                        <i class="fas fa-users"></i>
+                        Pemeran
+                    </label>
+                    <input type="text" id="cast" name="cast" class="form-input" placeholder="Nama pemeran (pisahkan dengan koma)" required>
+                </div>
+
+                <div class="form-actions">
+                    <button type="button" id="cancel-btn" class="btn btn-secondary">
+                        <i class="fas fa-times"></i>
+                        Batal
+                    </button>
+                    <button type="submit" class="btn btn-primary">
+                        <i class="fas fa-save"></i>
+                        Simpan Film
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Scripts -->
+    <script src="script.js"></script>
+</body>
+</html>
