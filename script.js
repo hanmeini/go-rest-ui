@@ -1,3 +1,41 @@
+// Auth guard: redirect to login if token missing
+const getToken = () => localStorage.getItem('token');
+const API_BASE = 'http://localhost:8080/api';
+
+if (!getToken()) {
+    window.location.href = 'login.html';
+}
+
+// Inject Authorization header into all API fetch calls and handle 401
+const originalFetch = window.fetch.bind(window);
+window.fetch = async (input, init = {}) => {
+    const url = typeof input === 'string' ? input : input.url;
+    const isApiRequest = typeof url === 'string' && url.startsWith(API_BASE);
+
+    if (isApiRequest) {
+        const token = getToken();
+        if (!init.headers) init.headers = {};
+        // Normalize Headers to plain object for easy merge
+        if (init.headers instanceof Headers) {
+            const headersObj = {};
+            init.headers.forEach((v, k) => { headersObj[k] = v; });
+            init.headers = headersObj;
+        }
+        if (token) {
+            init.headers['Authorization'] = `Bearer ${token}`;
+        }
+    }
+
+    const response = await originalFetch(input, init);
+    if (response.status === 401) {
+        localStorage.removeItem('token');
+        try { await response.clone().text(); } catch (_) {}
+        window.location.href = 'login.html';
+        throw new Error('Unauthorized');
+    }
+    return response;
+};
+
 // API Configuration
 const apiUrl = 'http://localhost:8080/api/movies';
 
@@ -9,11 +47,14 @@ const fab = document.getElementById('fab');
 const closeModal = document.getElementById('close-modal');
 const cancelBtn = document.getElementById('cancel-btn');
 const movieIdInput = document.getElementById('movie-id');
+const welcome = document.getElementById('welcome');
 
 // Initialize the application
 document.addEventListener('DOMContentLoaded', () => {
     fetchAndRenderMovies();
     setupEventListeners();
+    setupLogoutButton();
+    renderWelcome();
 });
 
 // Event Listeners Setup
@@ -37,6 +78,56 @@ function setupEventListeners() {
     
     // Event delegation for movie list actions
     movieList.addEventListener('click', handleMovieListClick);
+}
+
+function renderWelcome() {
+    if (!welcome) return;
+    const username = localStorage.getItem('username');
+    if (!username) { welcome.innerHTML = ''; return; }
+    welcome.innerHTML = `
+        <div class="card" style="display:flex;align-items:center;gap:12px; padding: 1rem 1.25rem; border: 1px solid var(--border-color); border-radius: 12px; background: var(--card-bg);">
+            <i class="fas fa-hand-peace" style="color: var(--highlight-2);"></i>
+            <div>
+                <div style="font-weight:700;">Selamat datang, ${escapeHtml(username)}!</div>
+                <div style="color: var(--text-muted); font-size: 0.95rem;">Senang melihat Anda kembali. Jelajahi koleksi film Anda.</div>
+            </div>
+        </div>
+    `;
+}
+
+// Setup Logout button in header
+function setupLogoutButton() {
+    const headerContainer = document.querySelector('.header .container');
+    if (!headerContainer) return;
+
+    // Avoid duplicate button if script runs twice
+    if (document.getElementById('logout-btn')) return;
+
+    const btn = document.createElement('button');
+    btn.id = 'logout-btn';
+    btn.className = 'btn btn-secondary';
+    btn.title = 'Logout';
+    btn.style.marginLeft = 'auto';
+    btn.innerHTML = '<i class="fas fa-sign-out-alt"></i> Logout';
+
+    // Place button aligned to the right on the same row
+    headerContainer.style.display = 'flex';
+    headerContainer.style.alignItems = 'center';
+    headerContainer.appendChild(btn);
+
+    btn.addEventListener('click', handleLogout);
+}
+
+async function handleLogout() {
+    try {
+        await fetch(`${API_BASE}/logout`, { method: 'POST' });
+    } catch (_) {
+        // Ignore network errors and proceed to clear session
+    } finally {
+        localStorage.removeItem('token');
+        localStorage.removeItem('username');
+        window.location.href = 'login.html';
+    }
 }
 
 // Fetch and render movies
@@ -85,7 +176,6 @@ function createMovieCard(movie) {
     card.dataset.movieId = movie.id; // 'id' sudah cocok
 
     // SOLUSI ADA DI SINI:
-    // Pastikan kita menggunakan 'movie.pemeran', bukan 'movie.cast'
     const pemeranList = movie.pemeran ? movie.pemeran.join(', ') : 'Tidak ada informasi';
     
     card.innerHTML = `
