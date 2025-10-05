@@ -14,6 +14,9 @@ window.fetch = async (input, init = {}) => {
 
     if (isApiRequest) {
         const token = getToken();
+        console.log('API Request to:', url, 'Method:', init.method || 'GET');
+        console.log('Token available:', !!token);
+        
         if (!init.headers) init.headers = {};
         // Normalize Headers to plain object for easy merge
         if (init.headers instanceof Headers) {
@@ -23,18 +26,44 @@ window.fetch = async (input, init = {}) => {
         }
         if (token) {
             init.headers['Authorization'] = `Bearer ${token}`;
+            console.log('Authorization header added');
         }
     }
 
     const response = await originalFetch(input, init);
+    
+    if (isApiRequest) {
+        console.log('API Response:', url, 'Status:', response.status);
+    }
+    
     if (response.status === 401) {
+        console.log('Unauthorized response, redirecting to login');
         localStorage.removeItem('token');
+        localStorage.removeItem('username');
         try { await response.clone().text(); } catch (_) {}
         window.location.href = 'login.html';
         throw new Error('Unauthorized');
     }
     return response;
 };
+
+// Utility: safely extract error message without exhausting the original response body
+async function extractErrorMessage(response) {
+    const fallback = `HTTP error! status: ${response.status}`;
+    try {
+        const clone = response.clone();
+        const text = await clone.text();
+        if (!text) return fallback;
+        try {
+            const data = JSON.parse(text);
+            return data.message || data.error || text;
+        } catch (_) {
+            return text;
+        }
+    } catch (_) {
+        return fallback;
+    }
+}
 
 // API Configuration
 const apiUrl = 'http://localhost:8080/api/movies';
@@ -51,6 +80,11 @@ const welcome = document.getElementById('welcome');
 
 // Initialize the application
 document.addEventListener('DOMContentLoaded', () => {
+    console.log('Go-Flix Movie Manager initialized');
+    console.log('API URL:', apiUrl);
+    console.log('Token exists:', !!getToken());
+    console.log('Username:', localStorage.getItem('username'));
+    
     fetchAndRenderMovies();
     setupEventListeners();
     setupLogoutButton();
@@ -120,10 +154,14 @@ function setupLogoutButton() {
 
 async function handleLogout() {
     try {
+        console.log('Logging out...');
         await fetch(`${API_BASE}/logout`, { method: 'POST' });
-    } catch (_) {
+        console.log('Logout request sent successfully');
+    } catch (error) {
+        console.log('Logout request failed:', error);
         // Ignore network errors and proceed to clear session
     } finally {
+        console.log('Clearing local storage and redirecting to login');
         localStorage.removeItem('token');
         localStorage.removeItem('username');
         window.location.href = 'login.html';
@@ -135,16 +173,24 @@ async function fetchAndRenderMovies() {
     try {
         showLoading();
         
+        console.log('Fetching movies from:', apiUrl);
         const response = await fetch(apiUrl);
         
+        console.log('Response status:', response.status);
+        
         if (!response.ok) {
-            throw new Error(`HTTP error! status: ${response.status}`);
+            const errorMessage = await extractErrorMessage(response);
+            throw new Error(errorMessage);
         }
         
         const payload = await response.json();
+        console.log('Received payload:', payload);
+        
         const movies = Array.isArray(payload)
             ? payload
             : (payload && Array.isArray(payload.data) ? payload.data : []);
+        
+        console.log('Processed movies:', movies);
         
         // Clear the movie list
         movieList.innerHTML = '';
@@ -162,8 +208,8 @@ async function fetchAndRenderMovies() {
         
     } catch (error) {
         console.error('Error fetching movies:', error);
-        // Most likely CORS/network error
-        showError('Gagal memuat daftar film. Pastikan server berjalan dan CORS diaktifkan.');
+        const message = error.message || 'Gagal memuat daftar film. Pastikan server berjalan dan CORS diaktifkan.';
+        showError(message);
     }
 }
 
@@ -218,13 +264,18 @@ async function handleEditMovie(movieId) {
     try {
         showLoading();
         
+        console.log('Fetching movie for edit:', movieId);
         const response = await fetch(`${apiUrl}/${movieId}`);
         
+        console.log('Edit response status:', response.status);
+        
         if (!response.ok) {
-            throw new Error(`HTTP error! status: ${response.status}`);
+            const errorMessage = await extractErrorMessage(response);
+            throw new Error(errorMessage);
         }
         
         const movie = await response.json();
+        console.log('Movie data for edit:', movie);
         
         // Fill form with movie data
         fillForm(movie);
@@ -234,7 +285,8 @@ async function handleEditMovie(movieId) {
         
     } catch (error) {
         console.error('Error fetching movie:', error);
-        showError('Gagal memuat data film. Silakan coba lagi.');
+        const message = error.message || 'Gagal memuat data film. Silakan coba lagi.';
+        showError(message);
     }
 }
 
@@ -245,12 +297,16 @@ async function handleDeleteMovie(movieId) {
     if (!confirmed) return;
     
     try {
+        console.log('Deleting movie:', movieId);
         const response = await fetch(`${apiUrl}/${movieId}`, {
             method: 'DELETE'
         });
         
+        console.log('Delete response status:', response.status);
+        
         if (!response.ok) {
-            throw new Error(`HTTP error! status: ${response.status}`);
+            const errorMessage = await extractErrorMessage(response);
+            throw new Error(errorMessage);
         }
         
         // Refresh movie list
@@ -260,7 +316,8 @@ async function handleDeleteMovie(movieId) {
         
     } catch (error) {
         console.error('Error deleting movie:', error);
-        showError('Gagal menghapus film. Silakan coba lagi.');
+        const message = error.message || 'Gagal menghapus film. Silakan coba lagi.';
+        showError(message);
     }
 }
 
@@ -269,16 +326,44 @@ async function handleFormSubmit(e) {
     e.preventDefault();
     
     const formData = new FormData(movieForm);
+    
+    // Validasi input
+    const title = formData.get('title')?.trim();
+    const genre = formData.get('genre')?.trim();
+    const year = formData.get('year');
+    const director = formData.get('director')?.trim();
+    const cast = formData.get('cast')?.trim();
+    
+    if (!title || !genre || !year || !director || !cast) {
+        showError('Mohon lengkapi semua field yang wajib diisi.');
+        return;
+    }
+    
     const movieData = {
-        judul: formData.get('title'),
-        genre: formData.get('genre'),
-        tahun_rilis: parseInt(formData.get('year')),
-        sutradara: formData.get('director'),
-        pemeran: formData.get('cast').split(',').map(s => s.trim())
+        judul: title,
+        genre: genre,
+        tahun_rilis: parseInt(year),
+        sutradara: director,
+        pemeran: cast.split(',').map(s => s.trim()).filter(s => s.length > 0)
     };
+    
+    // Validasi tahun
+    if (isNaN(movieData.tahun_rilis) || movieData.tahun_rilis < 1900 || movieData.tahun_rilis > 2030) {
+        showError('Tahun rilis harus berupa angka antara 1900-2030.');
+        return;
+    }
+    
+    // Validasi pemeran
+    if (movieData.pemeran.length === 0) {
+        showError('Minimal satu pemeran harus diisi.');
+        return;
+    }
     
     const movieId = movieIdInput.value;
     const isEdit = movieId !== '';
+    
+    // Debug: log data yang akan dikirim
+    console.log('Sending movie data:', movieData);
     
     try {
         let response;
@@ -304,7 +389,20 @@ async function handleFormSubmit(e) {
         }
         
         if (!response.ok) {
-            throw new Error(`HTTP error! status: ${response.status}`);
+            // Coba ambil pesan error dari server
+            let errorMessage = `HTTP error! status: ${response.status}`;
+            try {
+                const errorData = await response.json();
+                errorMessage = errorData.message || errorData.error || errorMessage;
+            } catch (_) {
+                try {
+                    const text = await response.text();
+                    if (text) errorMessage = text;
+                } catch (__) {
+                    // Response body sudah dibaca atau tidak bisa dibaca
+                }
+            }
+            throw new Error(errorMessage);
         }
         
         // Clear form and hide modal
@@ -318,7 +416,8 @@ async function handleFormSubmit(e) {
         
     } catch (error) {
         console.error('Error saving movie:', error);
-        showError('Gagal menyimpan film. Silakan coba lagi.');
+        const message = error.message || 'Gagal menyimpan film. Silakan coba lagi.';
+        showError(message);
     }
 }
 
@@ -336,13 +435,25 @@ function hideModal() {
 }
 
 // Fill form with movie data
+// script.js
+
+// Ganti fungsi ini dengan yang baru
 function fillForm(movie) {
     document.getElementById('movie-id').value = movie.id;
     document.getElementById('title').value = movie.judul;
     document.getElementById('genre').value = movie.genre;
-    document.getElementById('year').value = movie.tahun;
+    
+    // PERBAIKAN 1: Gunakan 'tahun_rilis'
+    document.getElementById('year').value = movie.tahun_rilis; 
+    
     document.getElementById('director').value = movie.sutradara;
-    document.getElementById('cast').value = movie.pemeran;
+    
+    // PERBAIKAN 2: Gabungkan array 'pemeran' menjadi string dengan join()
+    if (Array.isArray(movie.pemeran)) {
+        document.getElementById('cast').value = movie.pemeran.join(', ');
+    } else {
+        document.getElementById('cast').value = movie.pemeran;
+    }
 }
 
 // Clear form
@@ -374,6 +485,7 @@ function showEmptyState() {
 
 // Show error message
 function showError(message) {
+    console.error('Error:', message);
     showNotification(message, 'error');
 }
 
